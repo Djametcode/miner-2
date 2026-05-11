@@ -1,0 +1,25 @@
+{
+  "name": "hash256-cli",
+  "version": "1.0.0",
+  "description": "CLI miner for HASH256 on Ethereum mainnet.",
+  "main": "miner.js",
+  "scripts": {
+    "start": "node miner.js",
+    "check": "node check-state.js"
+  },
+  "keywords": [
+    "hash256",
+    "ethereum",
+    "miner",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
