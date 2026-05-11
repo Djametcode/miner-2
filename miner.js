@@ -13,7 +13,7 @@ const os = require("os");
 const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-const CONTRACT = "0xAC7b5d06fa1e77D08aea40d46cB7C5923A87A0cc";
+const CONTRACT_ADDRESS = "0xAC7b5d06fa1e77D08aea40d46cB7C5923A87A0cc";
 
 const ABI = [
   "function getChallenge(address miner) view returns (bytes32)",
@@ -28,13 +28,9 @@ const ABI = [
 if (!isMainThread) {
   const { keccak_256 } = require("js-sha3");
 
-  const { challenge, target, startNonce, step } = workerData;
+  const { challenge, difficulty, startNonce, step } = workerData;
 
-  const challengeHex = challenge.startsWith("0x")
-    ? challenge.slice(2)
-    : challenge;
-
-  const challengeBuf = Buffer.from(challengeHex, "hex");
+  const challengeBuf = Buffer.from(challenge.replace("0x", ""), "hex");
 
   const nonceBuf = Buffer.allocUnsafe(32);
 
@@ -43,6 +39,8 @@ if (!isMainThread) {
   challengeBuf.copy(combined, 0);
 
   let nonce = BigInt(startNonce);
+
+  const difficultyBig = BigInt(difficulty);
 
   let counter = 0;
 
@@ -60,7 +58,7 @@ if (!isMainThread) {
 
     const hashBig = BigInt("0x" + hashHex);
 
-    if (hashBig < BigInt(target)) {
+    if (hashBig < difficultyBig) {
       parentPort.postMessage({
         type: "found",
         nonce: nonce.toString(),
@@ -74,7 +72,7 @@ if (!isMainThread) {
 
     counter++;
 
-    if (counter >= 5000000) {
+    if (counter >= 1000000) {
       parentPort.postMessage({
         type: "progress",
         count: counter,
@@ -99,12 +97,12 @@ else {
 
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
-    const contract = new ethers.Contract(CONTRACT, ABI, wallet);
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
 
     const WORKERS = parseInt(process.env.WORKERS) || os.cpus().length;
 
     console.log("================================");
-    console.log("FAST HASH256 MINER");
+    console.log("HASH256 FAST MINER");
     console.log("================================");
     console.log("Wallet :", wallet.address);
     console.log("Workers:", WORKERS);
@@ -115,15 +113,15 @@ else {
       try {
         const state = await contract.miningState();
 
-        const difficulty = BigInt(state.difficulty);
+        const difficulty = BigInt(state.difficulty.toString());
 
         const challenge = await contract.getChallenge(wallet.address);
 
-        const target = ((1n << 256n) - 1n) / difficulty;
-
         console.log("\n================================");
         console.log("Difficulty:", difficulty.toString());
+
         console.log("Challenge :", challenge);
+
         console.log("================================");
 
         let hashes = 0;
@@ -149,7 +147,7 @@ else {
             const worker = new Worker(__filename, {
               workerData: {
                 challenge,
-                target: target.toString(),
+                difficulty: difficulty.toString(),
                 startNonce: i,
                 step: WORKERS,
               },
@@ -168,9 +166,14 @@ else {
                 workers.forEach((w) => w.terminate());
 
                 console.log("\n");
+                console.log("================================");
                 console.log("✅ FOUND");
+                console.log("================================");
                 console.log("Nonce:", msg.nonce);
+
                 console.log("Hash :", msg.hash);
+
+                console.log("================================");
 
                 resolve(BigInt(msg.nonce));
               }
